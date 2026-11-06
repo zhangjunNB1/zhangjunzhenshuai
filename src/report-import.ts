@@ -8,7 +8,7 @@ export const aliases:Record<keyof Mapping,string[]>={sku:['SKUID','SKU编号','�
 function norm(v:any){return String(v??'').trim().replace(/[\s_]/g,'').toLowerCase();}
 export function guessMapping(header:any[]):Mapping{return Object.fromEntries(Object.entries(aliases).map(([k,names])=>[k,header.findIndex(v=>names.some(n=>norm(n)===norm(v)))])) as Mapping;}
 export function findHeader(rows:any[][],kind:'sales'|'ads'){let best=0,score=-1;for(let i=0;i<Math.min(50,rows.length);i++){const m=guessMapping(rows[i]),s=(m.sku>=0?5:0)+(kind==='sales'?(m.qty>=0?3:0)+(m.sales>=0?3:0):(m.ads>=0?6:0));if(s>score){best=i;score=s;}}return best;}
-export function readReport(buffer:ArrayBuffer){const wb=read(buffer,{type:'array',raw:true,cellDates:false});return wb.SheetNames.map(name=>({name,rows:utils.sheet_to_json<any[]>(wb.Sheets[name],{header:1,defval:'',raw:true,blankrows:false})}));}
+export function readReport(buffer:ArrayBuffer,onlySheet?:string){const wb=read(buffer,{type:'array',raw:true,cellDates:false});return wb.SheetNames.filter(name=>!onlySheet||name===onlySheet).map(name=>{const sheet=wb.Sheets[name],range=utils.decode_range(sheet['!ref']||'A1');if(range.e.r>100000)throw Error('工作表有效区域超过10万行，请清理多余格式或拆分文件');return {name,rows:utils.sheet_to_json<any[]>(sheet,{header:1,defval:'',raw:true,blankrows:true})};});}
 export function reportDate(value:any,fallback:string):string{
  if(value===''||value===null||value===undefined){if(!isDay(fallback))throw Error('缺少业务日期，请选择文件日期列或填写业务日期');return fallback;}
  if(typeof value==='number'&&value>20000&&value<100000){const d=new Date(Date.UTC(1899,11,30)+Math.floor(value)*86400000).toISOString().slice(0,10);if(isDay(d))return d;}
