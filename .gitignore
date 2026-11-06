@@ -1,5 +1,6 @@
 node_modules/
 .private/
 *.xlsx
+!templates/*.xlsx
 *.xls
 source-workbook*.json
