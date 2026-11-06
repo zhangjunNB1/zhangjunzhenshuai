@@ -1,0 +1,11 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import {createRequire} from 'node:module';
+import {fileURLToPath} from 'node:url';
+const root=fileURLToPath(new URL('../',import.meta.url));
+const require=createRequire(process.env.PROFIT_BUILD_DEPENDENCIES||path.join(root,'package.json'));
+const esbuild=require('esbuild');
+const manifest=JSON.parse(await fs.readFile(path.join(root,'data/manifest.json'),'utf8'));
+await fs.writeFile(path.join(root,'src/archive-meta.ts'),'export const PUBLISHED_LATEST_DATE='+JSON.stringify(manifest.latestDate)+';\n');
+await esbuild.build({entryPoints:[path.join(root,'src/main.tsx')],bundle:true,format:'esm',target:['es2022'],minify:true,jsx:'automatic',outdir:path.join(root,'assets'),entryNames:'app',nodePaths:[path.dirname(require.resolve('react/package.json'))+'/..'],define:{'process.env.NODE_ENV':'"production"'},legalComments:'eof'});
+console.log(JSON.stringify({built:'GitHub Pages',javascriptBytes:(await fs.stat(path.join(root,'assets/app.js'))).size}));
