@@ -1,5 +1,5 @@
 import React,{useEffect,useRef} from 'react';
-import {X,Search,FileSpreadsheet} from 'lucide-react';
+import {X,Search,FileSpreadsheet,AlertCircle} from 'lucide-react';
 import type {Workspace} from './workbench-model';
 export const money=(v:number|null|undefined,d=2)=>v===null||v===undefined?'—':'¥'+(v/100).toLocaleString('zh-CN',{minimumFractionDigits:d,maximumFractionDigits:d});
 export const num=(v:number)=>v.toLocaleString('zh-CN');
