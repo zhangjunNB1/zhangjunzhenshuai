@@ -4,7 +4,9 @@
 
 页面、代码和历史数据统一维护在本仓库，不再运行本地站点。静态发布文件位于根目录、assets和data。
 
-## 数据口径
+新五页工作台的商品维护、成本调整、网页上传、售价试算及GitHub保存说明见[WORKBENCH.md](WORKBENCH.md)。下面记录原始Excel归档口径；新上传数据使用独立的可编辑成本规则。
+
+## 原云表归档数据口径
 
 唯一主表为工作簿第一个Sheet“SPU投产测算表”。全店销售额、推广前利润、推广费、经营利润分别读取Y1、U1、W1、X1；利润口径成本为Y1−U1。底板/大板的卡片分别读取第2、3行相应单元格。SKU明细读取首表第5行起的B/C/D/P/Q/R/S/W列；分组SUMPRODUCT范围决定是否纳入SKU毛利贡献。
 
@@ -24,4 +26,4 @@
 
 导入Excel：先安装requirements.txt中的openpyxl，运行python scripts/read-workbook.py 输入.xlsx 输出.json，再运行node scripts/import-first-sheet.mjs 输出.json。输出的完整工作簿JSON仅作临时输入，不要提交到公开仓库。金额统一为整数分，原始Excel不修改。
 
-页面当前支持公开浏览、筛选、CSV导出、归类查询、历史下载；未配置在线上传写入或定时抓取。GitHub仓库的提交历史同时保留页面及数据版本。
+当前五页工作台支持归档浏览、明细筛选导出、前端商品维护、成本及套装规则维护、Excel/CSV报表上传和独立售价试算。网页内修改先保存草稿，经用户使用GitHub细粒度令牌可发布到data/workbench.json。推广API和金山自动抓取尚未接入。GitHub提交历史保留页面及发布资料版本，原始归档文件继续保留。
