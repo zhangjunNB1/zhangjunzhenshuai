@@ -8,5 +8,6 @@
 
 - [工作台功能与使用说明](WORKBENCH.md)
 - [原云表归档口径](PROFIT_DASHBOARD.md)
+- [页面调整与跨电脑接续](DASHBOARD_HANDOFF.md)
 
 源码与构建资源统一在本仓库维护，通过GitHub Pages发布。网页资料可保存为草稿，并通过细粒度GitHub令牌发布到仓库。推广API尚待实际授权接入。
