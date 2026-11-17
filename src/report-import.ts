@@ -4,9 +4,18 @@ import {isDay} from './profit.ts';
 import type {Report,ReportRow} from './workbench-model.ts';
 
 export type Mapping={sku:number;date:number;name:number;merchantSku:number;qty:number;sales:number;ads:number;adRevenue:number};
-export const aliases:Record<keyof Mapping,string[]>={sku:['SKUID','SKU编号','商品SKU编号','商品SKU','SKU','商品编号'],date:['日期','统计日期','业务日期','时间','统计时间'],name:['商品名称','SKU名称','商品标题','SKU规格'],merchantSku:['商家SKU','商家编码','商家SKU编码','货号','型号'],qty:['成交商品件数','成交件数','成交商品数量','成交数量','成交单量','数量'],sales:['成交金额','成交金额(元)','成交金额（元）','成交金额(总)','销售额','GMV合计','销售金额'],ads:['花费','总花费','消耗','总消耗','推广费用','推广费','花费(元)','花费（元）'],adRevenue:['广告归因成交额','总订单金额','总成交金额','总订单金额(元)','总订单金额（元）']};
+export const aliases:Record<keyof Mapping,string[]>={sku:['SKUID','SKU编号','商品SKU编号','商品SKU','SKU','商品编号','商品ID'],date:['日期','统计日期','业务日期','时间','统计时间'],name:['商品名称','SKU名称','商品标题','SKU规格'],merchantSku:['商家SKU','商家编码','商家SKU编码','货号','型号'],qty:['成交商品件数','成交件数','成交商品数量','成交数量','成交单量','数量'],sales:['成交金额','成交金额(元)','成交金额（元）','成交金额(总)','销售额','GMV合计','销售金额'],ads:['花费','总花费','消耗','总消耗','推广费用','推广费','花费(元)','花费（元）'],adRevenue:['广告归因成交额','总订单金额','总成交金额','总订单金额(元)','总订单金额（元）']};
 function norm(v:any){return String(v??'').trim().replace(/[\s_]/g,'').toLowerCase();}
-export function guessMapping(header:any[]):Mapping{return Object.fromEntries(Object.entries(aliases).map(([k,names])=>[k,header.findIndex(v=>names.some(n=>norm(n)===norm(v)))])) as Mapping;}
+export function guessMapping(header:any[]):Mapping{
+ const mapping=Object.fromEntries(Object.entries(aliases).map(([key,names])=>[key,header.findIndex(value=>names.some(name=>norm(name)===norm(value)))])) as Mapping;
+ const shangzhiQuantity=header.findIndex(value=>norm(value)==='成交商品件数');
+ const isShangzhiProductReport=norm(header[mapping.sku])==='商品id'&&norm(header[mapping.date])==='时间'&&shangzhiQuantity>=0;
+ if(isShangzhiProductReport){
+  mapping.qty=shangzhiQuantity;
+  if(norm(header[mapping.merchantSku])==='货号')mapping.merchantSku=-1;
+ }
+ return mapping;
+}
 export function findHeader(rows:any[][],kind:'sales'|'ads'){let best=0,score=-1;for(let i=0;i<Math.min(50,rows.length);i++){const m=guessMapping(rows[i]),s=(m.sku>=0?5:0)+(kind==='sales'?(m.qty>=0?3:0)+(m.sales>=0?3:0):(m.ads>=0?6:0));if(s>score){best=i;score=s;}}return best;}
 export function readReport(buffer:ArrayBuffer,onlySheet?:string,percentageText=false){const wb=read(buffer,{type:'array',raw:true,cellDates:false,cellNF:percentageText});return wb.SheetNames.filter(name=>!onlySheet||name===onlySheet).map(name=>{const sheet=wb.Sheets[name],range=utils.decode_range(sheet['!ref']||'A1');if(range.e.r>100000||range.e.c>200)throw Error('工作表超过10万行或201列，请清理多余格式或拆分文件');const rows=utils.sheet_to_json<any[]>(sheet,{header:1,range:{s:{r:0,c:0},e:range.e},defval:'',raw:true,blankrows:true});if(percentageText)for(const [address,cell] of Object.entries(sheet)){if(address.startsWith('!')||typeof cell.v!=='number'||!String(cell.z||'').replace(/"[^"]*"|\\./g,'').includes('%'))continue;const p=utils.decode_cell(address);if(rows[p.r])rows[p.r][p.c]=(cell.v*100).toFixed(8).replace(/\.?0+$/,'')+'%';}return {name,rows};});}
 export function reportDate(value:any,fallback:string):string{

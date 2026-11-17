@@ -1,17 +1,72 @@
-import {validateWorkspace} from './workbench-model.ts';
+import {hydratePublishedWorkspace,packPublishedWorkspace,publishedReportPaths,retainPublishedReports} from './report-storage.ts';
 import type {Workspace} from './workbench-model.ts';
-const contents='https://api.github.com/repos/zhangjunNB1/zhangjunzhenshuai/contents/data/workbench.json';
-export const BASE_KEY='mi-tv-workbench-cloud-base-v1';
-function decode(content:string){const bytes=Uint8Array.from(atob(content.replace(/\s/g,'')),c=>c.charCodeAt(0));return validateWorkspace(JSON.parse(new TextDecoder().decode(bytes)));}
-function encode(content:string){const bytes=new TextEncoder().encode(content);let result='';for(let i=0;i<bytes.length;i+=8192)result+=String.fromCharCode(...bytes.subarray(i,i+8192));return btoa(result);}
-async function fileWorkspace(file:any,headers:Record<string,string>){if(file.encoding==='base64'&&file.content)return decode(file.content);const response=await fetch(contents+'?ref=main',{cache:'no-store',headers:{...headers,Accept:'application/vnd.github.raw+json'}});if(!response.ok)throw Error('无法读取完整GitHub资料');return validateWorkspace(await response.json());}
-export async function loadGithubWorkspace(){const headers={Accept:'application/vnd.github+json'},response=await fetch(contents+'?ref=main',{cache:'no-store',headers});if(!response.ok)throw Error('无法读取GitHub最新资料，请稍后重试');const file=await response.json();return {workspace:await fileWorkspace(file,headers),sha:file.sha};}
-export async function publishWorkspace(workspace:Workspace,base:string,token:string){
- if(!token.trim())throw Error('请填写仅授权本仓库Contents读写权限的GitHub令牌');
- const headers={Accept:'application/vnd.github+json',Authorization:'Bearer '+token.trim(),'Content-Type':'application/json'};
- const current=await fetch(contents+'?ref=main',{headers,cache:'no-store'});if(!current.ok)throw Error(current.status===401?'令牌无效或已过期':'读取仓库失败，请核实令牌对本仓库的权限');
- const file=await current.json(),remote=await fileWorkspace(file,headers);if(JSON.stringify(remote)!==base)throw Error('仓库资料已有新版本。请先备份草稿，再载入仓库最新资料后继续修改，避免覆盖他人的更新');
- const response=await fetch(contents,{method:'PUT',headers,body:JSON.stringify({message:'Update workbench products, costs and reports',branch:'main',sha:file.sha,content:encode(JSON.stringify(validateWorkspace(workspace)))})});
- if(!response.ok)throw Error(response.status===409||response.status===422?'保存发生版本冲突，请载入最新资料后重试':'发布失败，请核实Contents写入权限及仓库保护规则');
- return (await response.json()).commit.html_url as string;
+
+const repository = 'zhangjunNB1/zhangjunzhenshuai';
+const api = `https://api.github.com/repos/${repository}`;
+const raw = `https://raw.githubusercontent.com/${repository}`;
+const headers = {Accept:'application/vnd.github+json'};
+export const BASE_KEY = 'mi-tv-workbench-cloud-base-v1';
+
+async function json(path: string, method = 'GET', token?: string, body?: unknown) {
+  const response = await fetch(api + path, {
+    method, cache:'no-store',
+    headers:{...headers, ...(token && {Authorization:`Bearer ${token}`}), ...(body && {'Content-Type':'application/json'})},
+    body:body === undefined ? undefined : JSON.stringify(body),
+  });
+  if (!response.ok) {
+    if (response.status === 401) throw Error('令牌无效或已过期');
+    if (response.status === 409 || response.status === 422) throw Error('发布遇到版本冲突，请载入最新资料后重试');
+    throw Error(`GitHub 请求失败（${response.status}）。请检查网络、令牌权限或仓库保护规则。`);
+  }
+  return response.json();
+}
+
+async function readAt(path: string, commit: string) {
+  const response = await fetch(`${raw}/${commit}/${path}`, {cache:'no-store'});
+  if (!response.ok) throw Error(`GitHub 资料读取失败：${path}`);
+  return response.text();
+}
+
+async function readWorkspace(commit: string) {
+  const file = JSON.parse(await readAt('data/workbench.json', commit));
+  const workspace = await hydratePublishedWorkspace(file, path => readAt(path, commit));
+  return {file,workspace};
+}
+
+async function head(token?: string) {
+  const {object:{sha}} = await json('/git/ref/heads/main','GET',token);
+  if (!/^[0-9a-f]{40}$/.test(sha)) throw Error('无法确认 GitHub 主分支版本');
+  return sha as string;
+}
+
+export async function loadGithubWorkspace() {
+  const sha = await head();
+  const {workspace} = await readWorkspace(sha);
+  return {workspace,sha};
+}
+
+export async function publishWorkspace(workspace: Workspace,base: string,token: string) {
+  token = token.trim();
+  if (!token) throw Error('请填写仅授权本仓库 Contents 读写权限的 GitHub 令牌');
+  const sha = await head(token);
+  const {file,workspace:published} = await readWorkspace(sha);
+  if (JSON.stringify(published) !== base) {
+    throw Error('仓库资料已有新版本。请先备份草稿，再载入 GitHub 最新资料。');
+  }
+  const retained = retainPublishedReports(published, workspace);
+  const output = await packPublishedWorkspace(retained);
+  const known = publishedReportPaths(file);
+  const files = output.files.filter(entry => !known.has(entry.path));
+  files.push({path:'data/workbench.json',content:output.manifestText});
+
+  // Files and the index become visible together after advancing the branch reference.
+  const current = await json(`/git/commits/${sha}`,'GET',token);
+  let tree = current.tree.sha as string;
+  for (let offset = 0; offset < files.length; offset += 10) {
+    const entries = files.slice(offset, offset + 10).map(file => ({...file,mode:'100644',type:'blob'}));
+    tree = (await json('/git/trees','POST',token,{base_tree:tree,tree:entries})).sha;
+  }
+  const next = await json('/git/commits','POST',token,{message:'Archive workbench data and report revisions',tree,parents:[sha]});
+  await json('/git/refs/heads/main','PATCH',token,{sha:next.sha,force:false});
+  return {url:`https://github.com/${repository}/commit/${next.sha}`,workspace:retained};
 }

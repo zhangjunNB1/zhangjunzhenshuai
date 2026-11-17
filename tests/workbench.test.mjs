@@ -16,3 +16,15 @@ test('日期生效规则同时约束货品与套装，零成交保留广告费',
 test('试算明确扣各单件成本、按额佣金和总推广，100%佣金无保本价',()=>{const r=simulate({price:150000,qty:2,base:100000,shipping:5000,extra:8000,other:1000,commissionBps:200,ads:10000});assert.equal(r.profit,56000);assert.ok(r.breakEven>0);assert.equal(simulate({price:100,qty:1,base:0,shipping:0,extra:0,other:0,commissionBps:10000,ads:0}).breakEven,null);assert.throws(()=>simulate({price:100,qty:0,base:0,shipping:0,extra:0,other:0,commissionBps:0,ads:0}));});
 test('导入保留SKU文本，拒绝重复商智、跨日累计、缺金额和模糊映射',()=>{const rows=[['日期','SKUID','成交件数','成交金额'],['2026-11-05','00123',2,'3,000.00']];const map=guessMapping(rows[0]);assert.equal(findHeader([['说明'],...rows],'sales'),1);const parsed=parseReport(rows,0,map,'sales','2026-11-06');assert.equal(parsed.rows[0].sku,'00123');assert.equal(parsed.rows[0].sales,300000);assert.throws(()=>parseReport([...rows,rows[1]],0,map,'sales','2026-11-06'),/重复/);assert.throws(()=>reportDate('2026-11-05~2026-11-06','2026-11-06'),/累计多日/);assert.equal(reportDate('20261105~20261105',''), '2026-11-05');assert.throws(()=>parseReport([rows[0],['2026-11-05','123',1,'']],0,map,'sales',''),/金额/);assert.throws(()=>parseReport(rows,0,{...map,sales:map.qty},'sales',''),/同一列/);});
 test('恢复备份拒绝非法金额、日期、重复SKU和危险链接',()=>{validateWorkspace(fixture());for(const mutate of [w=>w.products.push({...w.products[0]}),w=>w.costs[0].versions[0].base=-1,w=>w.costs[0].versions[0].effectiveFrom='2026-02-30',w=>w.products[0].url='javascript:alert(1)',w=>w.products[0].bundleId='no-such-bundle']){const w=fixture();mutate(w);assert.throws(()=>validateWorkspace(w),/备份/);}assert.throws(()=>identifier('1e+14'));assert.throws(()=>amount(''));assert.equal(amount('0'),0);});
+
+test('商智分天商品明细优先取成交商品件数，货号不作为商家 SKU',()=>{
+ const rows=[
+  ['时间','商品ID','商品名称','货号','成交单量','成交商品件数','成交金额'],
+  ['2026-11-15','00123','测试商品','6900000000000',1,2,3000],
+ ];
+ const mapping=guessMapping(rows[0]);
+ const {rows:[row]}=parseReport(rows,0,mapping,'sales','');
+ assert.equal(row.sku,'00123');
+ assert.equal(row.qty,2);
+ assert.equal(row.merchantSku,'');
+});

@@ -13,5 +13,5 @@ export function Pager({page,total,onChange}:{page:number;total:number;onChange:(
 export function SearchBox({value,onChange,placeholder='搜索商品名称、平台SKU或商家SKU'}:{value:string;onChange:(s:string)=>void;placeholder?:string}){return <label className="search-box"><Search size={17}/><input aria-label={placeholder} placeholder={placeholder} value={value} onChange={e=>onChange(e.target.value)}/></label>;}
 export function Empty({title,children}:{title:string;children?:React.ReactNode}){return <div className="empty-state"><FileSpreadsheet size={32}/><h3>{title}</h3><p>{children}</p></div>;}
 export function MoneyInput({name,label,value,required=true}:{name:string;label:string;value?:number;required?:boolean}){return <label>{label}<div className="input-unit"><span>¥</span><input name={name} type="number" min="0" step="0.01" defaultValue={fieldMoney(value)} required={required}/></div></label>;}
-export type EditProps={w:Workspace;commit:(w:Workspace,message?:string)=>boolean;notify:(s:string)=>void};
+export type EditProps={w:Workspace;commit:(w:Workspace,message?:string)=>Promise<boolean>;notify:(s:string)=>void};
 

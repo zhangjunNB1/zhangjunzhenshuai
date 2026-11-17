@@ -5,5 +5,5 @@ export function startupWorkspace(published:Workspace,localText:string|null,baseT
  const current=JSON.stringify(published);if(!localText)return {workspace:published,base:current,remoteNewer:false};
  const local=validateWorkspace(JSON.parse(localText)),previous=baseText?JSON.stringify(validateWorkspace(JSON.parse(baseText))):null;
  if(previous===JSON.stringify(local))return {workspace:published,base:current,remoteNewer:false};
- return {workspace:local,base:previous||current,remoteNewer:previous!==null&&previous!==current};
+ return {workspace:local,base:previous??'',remoteNewer:previous!==current};
 }

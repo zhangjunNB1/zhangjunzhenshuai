@@ -8,13 +8,40 @@ export function combineRows(rows:any[]){
 export function selectLatest(entries:any[]){const result=new Map<string,any>();for(const e of entries){const key=e.date+'|'+e.shop;const old=result.get(key);if(!old||[e.capturedAt,e.importedAt,e.id].join('|')>[old.capturedAt,old.importedAt,old.id].join('|'))result.set(key,e);}return [...result.values()].sort((a,b)=>a.date.localeCompare(b.date));}
 export function makeOverview(manifest:any,snapshots:any[],from:string,to:string){
  const dateGroups=new Map<string,any>(),categoryGroups=new Map<string,any>();const rows:any[]=[],categorized:any[]=[],notices:any[]=[];
+ const coverageByDay:{date:string;missingCount:number;missingQty:number;missingSales:number}[]=[];
  for(const s of snapshots){if(s.date<from||s.date>to)continue;const totals=sumRows(s.rows),summary=s.summary||totals;let day=dateGroups.get(s.date);if(!day){day={date:s.date,sales:0,cost:0,ads:0,profit:0,adRevenue:0,capturedAt:s.capturedAt,rowCount:0};dateGroups.set(s.date,day);}for(const k of ['sales','cost','ads','profit'])day[k]+=summary[k];day.rowCount+=s.rows.length;day.capturedAt=day.capturedAt>s.capturedAt?day.capturedAt:s.capturedAt;if(totals.adRevenue===null)day.adRevenue=null;else if(day.adRevenue!==null)day.adRevenue+=totals.adRevenue;
   for(const message of s.warnings||[])notices.push({date:s.date,text:message});
-  for(const r of s.rows){const category=resolveCategory(r.sku,r.spu,s.date,manifest.rules);rows.push({...r,shop:s.shop});categorized.push({...r,shop:s.shop,category});const key=s.date+'|'+category;let d=categoryGroups.get(key);if(!d){d={date:s.date,category,sales:0,cost:0,ads:0,profit:0,qty:0,adRevenue:0,rowCount:0};categoryGroups.set(key,d);}for(const k of ['sales','cost','ads','profit','qty'])d[k]+=r[k];d.rowCount++;if(r.adRevenue===null)d.adRevenue=null;else if(d.adRevenue!==null)d.adRevenue+=r.adRevenue;}
-  // 首表第2/3行是源表已确认的分类汇总，卡片按原单元格展示；SKU筛选仍保留逐行明细。
-  for(const source of s.categorySummaries||[]){const key=s.date+'|'+source.category;const derived=categoryGroups.get(key);if(derived)categoryGroups.set(key,{...derived,...source,date:s.date,adRevenue:derived.adRevenue});}
+  if(s.coverage&&['missingCount','missingQty','missingSales'].every(k=>Number.isFinite(s.coverage[k]))){
+   const {missingCount,missingQty,missingSales}=s.coverage;
+   coverageByDay.push({date:s.date,missingCount,missingQty,missingSales});
+  }
+  const snapshotCategories=new Map<string,any>();
+  function categoryDay(category:string){
+   if(!snapshotCategories.has(category))snapshotCategories.set(category,{date:s.date,category,sales:0,cost:0,ads:0,profit:0,qty:0,adRevenue:0,rowCount:0,summaryBasis:'detail'});
+   return snapshotCategories.get(category);
+  }
+  for(const r of s.rows){
+   const category=resolveCategory(r.sku,r.spu,s.date,manifest.rules||[]);
+   rows.push({...r,shop:s.shop});
+   categorized.push({...r,shop:s.shop,date:s.date,category});
+   const d=categoryDay(category);
+   for(const k of ['sales','cost','ads','profit','qty'])d[k]+=r[k];
+   d.rowCount++;
+   if(r.adRevenue===null)d.adRevenue=null;else if(d.adRevenue!==null)d.adRevenue+=r.adRevenue;
+  }
+  for(const summary of s.categorySummaries||[]){
+   const d=categoryDay(summary.category);
+   Object.assign(d,summary,{qty:Number.isFinite(summary.qty)?summary.qty:null,summaryBasis:'original'});
+  }
+  for(const d of snapshotCategories.values()){
+   const key=d.date+'|'+d.category,group=categoryGroups.get(key);
+   if(!group){categoryGroups.set(key,d);continue;}
+   for(const k of ['sales','cost','ads','profit','rowCount'])group[k]+=d[k];
+   for(const k of ['qty','adRevenue'])group[k]=Number.isFinite(group[k])&&Number.isFinite(d[k])?group[k]+d[k]:null;
+   if(group.summaryBasis!==d.summaryBasis)group.summaryBasis='mixed';
+  }
  }
  const dates=[...new Set(manifest.snapshots.map((s:any)=>s.date))].sort() as string[];
  const sourceTimes=snapshots.filter(s=>s.date>=from&&s.date<=to).map(s=>({date:s.date,sales:s.cutoffs?.sales,ads:s.cutoffs?.ads,sheet:s.sheet,basis:s.basis,observedAt:s.observedAt})).sort((a,b)=>a.date.localeCompare(b.date));
- return {days:[...dateGroups.values()].sort((a,b)=>a.date.localeCompare(b.date)),rows:combineRows(rows),categoryRows:combineRows(categorized),categoryDays:[...categoryGroups.values()],history:manifest.snapshots,stats:{days:dates.length,revisions:manifest.snapshots.length,firstDate:dates[0]||null,lastDate:dates.at(-1)||null},notices,sourceTimes,publishedAt:manifest.publishedAt};
+ return {from,to,days:[...dateGroups.values()].sort((a,b)=>a.date.localeCompare(b.date)),rows:combineRows(rows),dailyRows:categorized,categoryRows:combineRows(categorized),categoryDays:[...categoryGroups.values()],coverageByDay,history:manifest.snapshots,stats:{days:dates.length,revisions:manifest.snapshots.length,firstDate:dates[0]||null,lastDate:dates.at(-1)||null},notices,sourceTimes,publishedAt:manifest.publishedAt};
 }
