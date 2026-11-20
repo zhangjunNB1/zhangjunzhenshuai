@@ -1,1 +1,1 @@
-export const PUBLISHED_LATEST_DATE="2026-11-06";
+export const PUBLISHED_LATEST_DATE="2026-11-19";
