@@ -1,0 +1,4 @@
+interface:
+  display_name: "京东实时推广费与投产"
+  short_description: "合并推广费单表与完整投产更新，校验后批量写入金山"
+  default_prompt: "使用 $jd-realtime-report 更新已授权的京东实时推广费或完整投产数据。"

@@ -1,0 +1,16 @@
+{
+  "name": "jd-realtime-report-skill",
+  "version": "1.0.0",
+  "private": true,
+  "description": "JD realtime promotion and KDocs production report skill",
+  "engines": {
+    "node": ">=20.6"
+  },
+  "dependencies": {
+    "playwright": "1.62.1"
+  },
+  "scripts": {
+    "update": "node scripts/run_realtime_update.cjs --scope all",
+    "promo": "node scripts/run_realtime_update.cjs --scope promo"
+  }
+}

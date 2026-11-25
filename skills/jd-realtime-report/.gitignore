@@ -1,0 +1,27 @@
+.env
+.env.*
+*.local.*
+jzt_config.json
+credentials*.json
+settings.env
+runtime/
+runs/
+profiles/
+browser-profile/
+*.xlsx
+*.xls
+*.zip
+*.har
+*.db
+*.sqlite
+Cookies
+Local State
+*.tsv
+*.csv
+*.jsonl
+*.log
+*.png
+trace*.zip
+__pycache__/
+*.pyc
+node_modules/
